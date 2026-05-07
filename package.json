@@ -1,6 +1,6 @@
 {
   "name": "audinote",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "main": "dist-electron/main/index.js",
   "description": "Voice recorder transcription and summarization app.",
   "author": "tenhou-Ravenclaw",
@@ -14,16 +14,23 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && electron-builder",
+    "build": "tsc && vite build",
+    "build:win": "npm run build && electron-builder --win",
+    "build:mac": "npm run build && electron-builder --mac",
     "preview": "vite preview",
     "pretest": "vite build --mode=test",
     "test": "vitest run"
   },
   "dependencies": {
-    "electron-updater": "^6.3.9"
+    "@google/generative-ai": "^0.24.1",
+    "chokidar": "^5.0.0",
+    "electron-store": "^11.0.2",
+    "electron-updater": "^6.3.9",
+    "react-router-dom": "^7.14.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.2",
+    "@types/node": "^25.5.2",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.3",

@@ -1,118 +1,44 @@
 import { ipcRenderer, contextBridge } from 'electron'
+import type { Settings, LogEntry, ProcessingProgress } from '../types'
 
-// --------- Expose some API to the Renderer process ---------
-contextBridge.exposeInMainWorld('ipcRenderer', {
-  on(...args: Parameters<typeof ipcRenderer.on>) {
-    const [channel, listener] = args
-    return ipcRenderer.on(channel, (event, ...args) => listener(event, ...args))
-  },
-  off(...args: Parameters<typeof ipcRenderer.off>) {
-    const [channel, ...omit] = args
-    return ipcRenderer.off(channel, ...omit)
-  },
-  send(...args: Parameters<typeof ipcRenderer.send>) {
-    const [channel, ...omit] = args
-    return ipcRenderer.send(channel, ...omit)
-  },
-  invoke(...args: Parameters<typeof ipcRenderer.invoke>) {
-    const [channel, ...omit] = args
-    return ipcRenderer.invoke(channel, ...omit)
-  },
+// レンダラーから呼び出せる API を定義する
+// 型定義は src/types/electron.d.ts に記載する
+contextBridge.exposeInMainWorld('audinote', {
+  // 設定
+  getSettings: (): Promise<Settings> =>
+    ipcRenderer.invoke('settings:get'),
+  saveSettings: (settings: Partial<Settings>): Promise<void> =>
+    ipcRenderer.invoke('settings:save', settings),
 
-  // You can expose other APTs you need here.
-  // ...
+  // 履歴
+  getHistory: (): Promise<LogEntry[]> =>
+    ipcRenderer.invoke('history:get'),
+
+  // USB 状態（起動時に一度 pull する用）
+  getUsbStatus: (): Promise<{ connected: boolean; devicePath?: string }> =>
+    ipcRenderer.invoke('usb:get-status'),
+
+  // 処理（手動実行）
+  startProcessing: (audioPath: string): Promise<void> =>
+    ipcRenderer.invoke('processing:start-manual', audioPath),
+
+  // 処理（Retry）
+  retryFile: (fileName: string): Promise<void> =>
+    ipcRenderer.invoke('processing:retry', fileName),
+
+  // ダイアログ
+  selectFolder: (): Promise<string | null> =>
+    ipcRenderer.invoke('dialog:select-folder'),
+  openFile: (filePath: string): Promise<void> =>
+    ipcRenderer.invoke('file:open', filePath),
+
+  // イベント購読
+  onUsbStatus: (cb: (data: { connected: boolean; devicePath?: string }) => void) =>
+    ipcRenderer.on('usb:status-changed', (_, data) => cb(data)),
+  onProcessingProgress: (cb: (progress: ProcessingProgress) => void) =>
+    ipcRenderer.on('processing:progress', (_, data) => cb(data)),
+  offUsbStatus: () =>
+    ipcRenderer.removeAllListeners('usb:status-changed'),
+  offProcessingProgress: () =>
+    ipcRenderer.removeAllListeners('processing:progress'),
 })
-
-// --------- Preload scripts loading ---------
-function domReady(condition: DocumentReadyState[] = ['complete', 'interactive']) {
-  return new Promise(resolve => {
-    if (condition.includes(document.readyState)) {
-      resolve(true)
-    } else {
-      document.addEventListener('readystatechange', () => {
-        if (condition.includes(document.readyState)) {
-          resolve(true)
-        }
-      })
-    }
-  })
-}
-
-const safeDOM = {
-  append(parent: HTMLElement, child: HTMLElement) {
-    if (!Array.from(parent.children).find(e => e === child)) {
-      return parent.appendChild(child)
-    }
-  },
-  remove(parent: HTMLElement, child: HTMLElement) {
-    if (Array.from(parent.children).find(e => e === child)) {
-      return parent.removeChild(child)
-    }
-  },
-}
-
-/**
- * https://tobiasahlin.com/spinkit
- * https://connoratherton.com/loaders
- * https://projects.lukehaas.me/css-loaders
- * https://matejkustec.github.io/SpinThatShit
- */
-function useLoading() {
-  const className = `loaders-css__square-spin`
-  const styleContent = `
-@keyframes square-spin {
-  25% { transform: perspective(100px) rotateX(180deg) rotateY(0); }
-  50% { transform: perspective(100px) rotateX(180deg) rotateY(180deg); }
-  75% { transform: perspective(100px) rotateX(0) rotateY(180deg); }
-  100% { transform: perspective(100px) rotateX(0) rotateY(0); }
-}
-.${className} > div {
-  animation-fill-mode: both;
-  width: 50px;
-  height: 50px;
-  background: #fff;
-  animation: square-spin 3s 0s cubic-bezier(0.09, 0.57, 0.49, 0.9) infinite;
-}
-.app-loading-wrap {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #282c34;
-  z-index: 9;
-}
-    `
-  const oStyle = document.createElement('style')
-  const oDiv = document.createElement('div')
-
-  oStyle.id = 'app-loading-style'
-  oStyle.innerHTML = styleContent
-  oDiv.className = 'app-loading-wrap'
-  oDiv.innerHTML = `<div class="${className}"><div></div></div>`
-
-  return {
-    appendLoading() {
-      safeDOM.append(document.head, oStyle)
-      safeDOM.append(document.body, oDiv)
-    },
-    removeLoading() {
-      safeDOM.remove(document.head, oStyle)
-      safeDOM.remove(document.body, oDiv)
-    },
-  }
-}
-
-// ----------------------------------------------------------------------
-
-const { appendLoading, removeLoading } = useLoading()
-domReady().then(appendLoading)
-
-window.onmessage = (ev) => {
-  ev.data.payload === 'removeLoading' && removeLoading()
-}
-
-setTimeout(removeLoading, 4999)

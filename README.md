@@ -1,91 +1,95 @@
-# electron-vite-react
+# Audinote
 
-[![awesome-vite](https://awesome.re/mentioned-badge.svg)](https://github.com/vitejs/awesome-vite)
-![GitHub stars](https://img.shields.io/github/stars/caoxiemeihao/vite-react-electron?color=fa6470)
-![GitHub issues](https://img.shields.io/github/issues/caoxiemeihao/vite-react-electron?color=d8b22d)
-![GitHub license](https://img.shields.io/github/license/caoxiemeihao/vite-react-electron)
-[![Required Node.JS >= 14.18.0 || >=16.0.0](https://img.shields.io/static/v1?label=node&message=14.18.0%20||%20%3E=16.0.0&logo=node.js&color=3f893e)](https://nodejs.org/about/releases)
+USB ICレコーダーを接続するだけで、音声ファイルを自動で文字起こし・要約してMarkdownに保存するデスクトップアプリです。
 
-English | [简体中文](README.zh-CN.md)
+## 概要
 
-## 👀 Overview
+ICレコーダーをPCに接続すると、録音ファイルを自動検出してGoogle Gemini APIで処理し、Markdownファイルとして指定フォルダに保存します。
 
-📦 Ready out of the box  
-🎯 Based on the official [template-react-ts](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts), project structure will be familiar to you  
-🌱 Easily extendable and customizable  
-💪 Supports Node.js API in the renderer process  
-🔩 Supports C/C++ native addons  
-🐞 Debugger configuration included  
-🖥 Easy to implement multiple windows  
+**処理フロー**
 
-## 🛫 Quick Setup
+```
+USB接続 → 音声ファイル検出 → 文字起こし → 要約・ファイル名生成 → Markdown保存
+```
+
+## 主な機能
+
+- **自動検出**: USB接続を監視し、音声ファイル（WAV / MP3 / M4A）を自動インポート
+- **AI処理**: Google Gemini APIで文字起こし・要約・ファイル名を自動生成
+- **並列処理**: 最大3ファイルを同時処理（Geminiレート制限を考慮）
+- **重複スキップ**: 成功済みファイルは再接続時に処理しない
+- **リトライ**: 失敗したファイルをUIから再処理可能
+- **履歴管理**: 処理結果の一覧表示と生成済みMarkdownを直接開く
+
+## セットアップ
 
 ```sh
-# clone the project
-git clone https://github.com/electron-vite/electron-vite-react.git
-
-# enter the project directory
-cd electron-vite-react
-
-# install dependency
+git clone https://github.com/tenhou-Ravenclaw/Audinote.git
+cd Audinote
 npm install
-
-# develop
 npm run dev
 ```
 
-## 🐞 Debug
+## ビルド
 
-![electron-vite-react-debug.gif](/electron-vite-react-debug.gif)
+```sh
+# Windows
+npm run build:win
 
-## 📂 Directory structure
-
-Familiar React application structure, just with `electron` folder on the top :wink:  
-*Files in this folder will be separated from your React application and built into `dist-electron`*  
-
-```tree
-├── electron                                 Electron-related code
-│   ├── main                                 Main-process source code
-│   └── preload                              Preload-scripts source code
-│
-├── release                                  Generated after production build, contains executables
-│   └── {version}
-│       ├── {os}-{os_arch}                   Contains unpacked application executable
-│       └── {app_name}_{version}.{ext}       Installer for the application
-│
-├── public                                   Static assets
-└── src                                      Renderer source code, your React application
+# macOS
+npm run build:mac
 ```
 
-<!--
-## 🚨 Be aware
+ビルド成果物は `release/{version}/` に出力されます。
 
-This template integrates Node.js API to the renderer process by default. If you want to follow **Electron Security Concerns** you might want to disable this feature. You will have to expose needed API by yourself.  
+## 設定
 
-To get started, remove the option as shown below. This will [modify the Vite configuration and disable this feature](https://github.com/electron-vite/vite-plugin-electron-renderer#config-presets-opinionated).
+アプリ内の Settings 画面で以下を設定します。
 
-```diff
-# vite.config.ts
+| 項目 | 説明 | 例 |
+|------|------|-----|
+| Google API Key | Gemini APIキー | `AIza...` |
+| Summary Prompt | 要約指示（`{{TRANSCRIPTION}}`が文字起こし結果に置換） | 任意のプロンプト |
+| Recorder Volume Name | USBデバイスのボリューム名 | `IC RECORDER` |
+| Audio Subfolder | レコーダー内の音声フォルダ名 | `RECORD` |
+| Markdown Output Directory | Markdown保存先フォルダ | 任意のフォルダ |
 
-export default {
-  plugins: [
-    ...
--   // Use Node.js API in the Renderer-process
--   renderer({
--     nodeIntegration: true,
--   }),
-    ...
-  ],
-}
+設定は変更後800ms後に自動保存されます。
+
+## ディレクトリ構成
+
 ```
--->
+├── electron/
+│   ├── main/          # メインプロセス（ウィンドウ・IPC）
+│   ├── preload/       # プリロードスクリプト（IPC橋渡し）
+│   ├── services/      # コアロジック
+│   │   ├── AudioProcessor.ts   # 音声処理パイプライン
+│   │   ├── GeminiClient.ts     # Gemini API呼び出し
+│   │   ├── UsbWatcher.ts       # USB接続監視
+│   │   ├── MarkdownWriter.ts   # Markdown出力
+│   │   ├── ProcessingLogger.ts # 処理履歴の記録
+│   │   └── SettingsStore.ts    # 設定の永続化
+│   └── types/         # 共有型定義
+│
+├── src/
+│   ├── pages/
+│   │   ├── Home.tsx     # メイン画面（USB状態・進捗表示）
+│   │   ├── History.tsx  # 処理履歴一覧
+│   │   └── Settings.tsx # 設定画面
+│   └── App.tsx          # ルーティング・サイドバー
+│
+└── release/             # ビルド成果物
+```
 
-## 🔧 Additional features
+## 技術スタック
 
-1. electron-updater 👉 [see docs](src/components/update/README.md)
-1. playwright
+- **Electron** — デスクトップアプリ基盤
+- **React + TypeScript** — UI
+- **Vite** — バンドラー
+- **Tailwind CSS** — スタイリング
+- **Google Gemini API** — 文字起こし・要約・ファイル名生成
+- **electron-store** — 設定の永続化
 
-## ❔ FAQ
+## ライセンス
 
-- [C/C++ addons, Node.js modules - Pre-Bundling](https://github.com/electron-vite/vite-plugin-electron-renderer#dependency-pre-bundling)
-- [dependencies vs devDependencies](https://github.com/electron-vite/vite-plugin-electron-renderer#dependencies-vs-devdependencies)
+MIT
