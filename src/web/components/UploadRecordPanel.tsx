@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { AudioRecorder } from '../services/recorder'
+import { AudioRecorder, describeRecordingError } from '../services/recorder'
 import type { InputMode } from '../types'
 
 interface Props {
@@ -31,7 +31,7 @@ export default function UploadRecordPanel({ disabled, onFileReady }: Props) {
       setElapsed(0)
       timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000)
     } catch (err) {
-      setRecordError(err instanceof Error ? err.message : String(err))
+      setRecordError(describeRecordingError(err))
     }
   }
 

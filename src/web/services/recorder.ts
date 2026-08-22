@@ -54,3 +54,19 @@ export class AudioRecorder {
     this.recorder = null
   }
 }
+
+// getUserMedia/MediaRecorder が投げる DOMException を日本語の案内文に変換する
+export function describeRecordingError(err: unknown): string {
+  const name = err instanceof DOMException ? err.name : ''
+  switch (name) {
+    case 'NotAllowedError':
+    case 'SecurityError':
+      return 'マイクへのアクセスが許可されていません。ブラウザの設定でこのサイトのマイク権限を許可してください。'
+    case 'NotFoundError':
+      return 'マイクが見つかりませんでした。デバイスが接続されているか確認してください。'
+    case 'NotReadableError':
+      return 'マイクを使用できませんでした。他のアプリが使用中の可能性があります。'
+    default:
+      return `録音を開始できませんでした。(${err instanceof Error ? err.message : String(err)})`
+  }
+}
