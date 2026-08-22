@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { WebSettings } from '../types'
 import { WhisperClient } from '../services/whisperClient'
 import { OllamaClient } from '../services/ollamaClient'
@@ -147,37 +147,47 @@ function AdvancedTab({ settings, onChange }: { settings: WebSettings; onChange: 
     <div>
       <p className="text-xs text-gray-500 mb-4">通常は変更不要です。長時間音声のチャンク分割処理に関する詳細設定です。</p>
       <Field label="チャンク分割のしきい値（秒）" description="この長さを超える音声は自動的に分割されます">
-        <input
-          type="number"
-          className="input"
-          value={settings.chunkThresholdSec}
-          onChange={e => onChange({ chunkThresholdSec: Number(e.target.value) })}
-        />
+        <NumberField min={1} value={settings.chunkThresholdSec} onCommit={v => onChange({ chunkThresholdSec: v })} />
       </Field>
       <Field label="チャンクの長さ（秒）">
-        <input
-          type="number"
-          className="input"
-          value={settings.chunkDurationSec}
-          onChange={e => onChange({ chunkDurationSec: Number(e.target.value) })}
-        />
+        <NumberField min={1} value={settings.chunkDurationSec} onCommit={v => onChange({ chunkDurationSec: v })} />
       </Field>
       <Field label="オーバーラップ（秒）">
-        <input
-          type="number"
-          className="input"
-          value={settings.chunkOverlapSec}
-          onChange={e => onChange({ chunkOverlapSec: Number(e.target.value) })}
-        />
+        <NumberField min={0} value={settings.chunkOverlapSec} onCommit={v => onChange({ chunkOverlapSec: v })} />
       </Field>
       <Field label="要約チャンクの文字数しきい値" description="文字起こしがこの文字数を超える場合、分割して要約します">
-        <input
-          type="number"
-          className="input"
-          value={settings.summaryChunkCharThreshold}
-          onChange={e => onChange({ summaryChunkCharThreshold: Number(e.target.value) })}
-        />
+        <NumberField min={1} value={settings.summaryChunkCharThreshold} onCommit={v => onChange({ summaryChunkCharThreshold: v })} />
       </Field>
     </div>
+  )
+}
+
+// 数値入力欄。入力中は自由な文字列を保持し、0/空文字への即時スナップを防ぐ。
+// blur時にのみ min 未満・非数値を最小値へ補正してonCommitへ渡す。
+function NumberField({ value, min, onCommit }: { value: number; min: number; onCommit: (value: number) => void }) {
+  const [text, setText] = useState(String(value))
+
+  useEffect(() => {
+    setText(String(value))
+  }, [value])
+
+  const commit = () => {
+    const parsed = Number(text)
+    const next = Number.isFinite(parsed) && parsed >= min ? parsed : min
+    setText(String(next))
+    if (next !== value) onCommit(next)
+  }
+
+  return (
+    <input
+      type="number"
+      className="input"
+      value={text}
+      onChange={e => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={e => {
+        if (e.key === 'Enter') e.currentTarget.blur()
+      }}
+    />
   )
 }

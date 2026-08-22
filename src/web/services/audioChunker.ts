@@ -25,8 +25,12 @@ export async function getAudioDuration(blob: Blob): Promise<number> {
 export async function splitAudio(blob: Blob, options: ChunkSplitOptions): Promise<Blob[]> {
   const buffer = await decode(blob)
   const { sampleRate, numberOfChannels, length: totalSamples } = buffer
-  const chunkSamples = Math.floor(options.chunkDurationSec * sampleRate)
-  const overlapSamples = Math.floor(options.overlapSec * sampleRate)
+  // chunkDurationSec が0以下、またはoverlapSecがchunkDurationSecに近い/それ以上だと
+  // 1ループあたりの前進量(chunkSamples - overlapSamples)がほぼ0になり、断片数が
+  // 爆発的に増えて実質フリーズする。そのため常にchunkSamplesの半分以上は
+  // 前進するようoverlapを制限する（オーバーラップは本来チャンク長の半分未満が前提）
+  const chunkSamples = Math.max(sampleRate, Math.floor(options.chunkDurationSec * sampleRate))
+  const overlapSamples = Math.max(0, Math.min(Math.floor(options.overlapSec * sampleRate), Math.floor(chunkSamples / 2)))
 
   const chunks: Blob[] = []
   let start = 0

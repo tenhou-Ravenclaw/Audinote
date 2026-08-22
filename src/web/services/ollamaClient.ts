@@ -83,7 +83,9 @@ export const OllamaClient = {
   },
 }
 
-function splitIntoParagraphChunks(text: string, maxChars: number): string[] {
+function splitIntoParagraphChunks(text: string, maxCharsInput: number): string[] {
+  // maxCharsが0以下だとforceSplitのループが前進せず無限ループになるため、必ず正の値に補正する
+  const maxChars = Math.max(1, maxCharsInput)
   const paragraphs = text.split(/\n{2,}/)
   const chunks: string[] = []
   let current = ''
