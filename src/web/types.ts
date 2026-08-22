@@ -57,3 +57,13 @@ export interface ProcessingResult {
   summary: string
   outputFilename: string
 }
+
+// 1回のブラウザセッション内で処理した音声1件分のタイムライン項目。
+// 新しいファイルが入力されても既存の項目は消さず、常にこの配列へ追加していく
+// （＝セッション全体で単一のコンテキストを保つ）。
+export interface SessionItem {
+  id: string
+  fileName: string
+  progress: ProcessingProgress
+  result: ProcessingResult | null
+}

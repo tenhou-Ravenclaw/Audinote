@@ -8,7 +8,7 @@ import { ProcessingLogger } from './services/logger'
 import { AudioProcessor } from './services/processor'
 import { MarkdownWriter } from './services/markdownWriter'
 import { DEFAULT_SETTINGS } from './types'
-import type { WebSettings, LogEntry, ProcessingProgress, ProcessingResult } from './types'
+import type { WebSettings, LogEntry, ProcessingResult, SessionItem } from './types'
 
 const AUTOSAVE_DELAY_MS = 800
 
@@ -17,8 +17,9 @@ export default function App() {
   const [history, setHistory] = useState<LogEntry[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [progress, setProgress] = useState<ProcessingProgress>({ status: 'idle' })
-  const [lastResult, setLastResult] = useState<ProcessingResult | null>(null)
+  // このブラウザセッションで処理した音声のタイムライン。新しいファイルが入力されても
+  // 消さずに追加していく（＝セッション全体で単一のコンテキストを保つ）
+  const [sessionItems, setSessionItems] = useState<SessionItem[]>([])
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isFirstLoad = useRef(true)
 
@@ -42,20 +43,24 @@ export default function App() {
 
   const updateSettings = (patch: Partial<WebSettings>) => setSettings(s => ({ ...s, ...patch }))
 
-  const isProcessing = !['idle', 'done', 'error'].includes(progress.status)
+  const isProcessing = sessionItems.some(item => !['idle', 'done', 'error'].includes(item.progress.status))
 
-  const handleNew = () => {
-    setSelectedId(null)
-    setProgress({ status: 'idle' })
-    setLastResult(null)
-  }
+  // 履歴の詳細表示から現在のセッションへ戻るだけで、タイムラインは消さない
+  const handleBackToSession = () => setSelectedId(null)
 
   const handleFileReady = async (blob: Blob, filename: string) => {
     setSelectedId(null)
-    setLastResult(null)
-    const result = await AudioProcessor.process(blob, filename, settings, setProgress)
+    const itemId = crypto.randomUUID()
+    setSessionItems(items => [...items, { id: itemId, fileName: filename, progress: { status: 'idle', fileName: filename }, result: null }])
+
+    const result = await AudioProcessor.process(blob, filename, settings, p => {
+      setSessionItems(items => items.map(item => (item.id === itemId ? { ...item, progress: p } : item)))
+    })
+
     setHistory(ProcessingLogger.getAll())
-    if (result) setLastResult(result)
+    if (result) {
+      setSessionItems(items => items.map(item => (item.id === itemId ? { ...item, result } : item)))
+    }
   }
 
   const selectedEntry = history.find(h => h.id === selectedId) ?? null
@@ -66,7 +71,7 @@ export default function App() {
         history={history}
         selectedId={selectedId}
         onSelect={setSelectedId}
-        onNew={handleNew}
+        onNew={handleBackToSession}
         onOpenSettings={() => setSettingsOpen(true)}
       />
       <main className="flex-1 overflow-y-auto">
@@ -77,11 +82,15 @@ export default function App() {
             <>
               <div>
                 <h2 className="text-xl font-semibold mb-1">新規処理</h2>
-                <p className="text-sm text-gray-500">音声ファイルをアップロードするか、その場で録音してください。</p>
+                <p className="text-sm text-gray-500">音声ファイルをアップロードするか、その場で録音してください。続けて別のファイルを入力しても、これまでの結果は残ります。</p>
               </div>
               <UploadRecordPanel disabled={isProcessing} onFileReady={handleFileReady} />
-              <ProcessingTimeline progress={progress} fileName={progress.fileName} />
-              {progress.status === 'done' && lastResult && <ResultCard result={lastResult} />}
+              {sessionItems.map(item => (
+                <div key={item.id} className="flex flex-col gap-3">
+                  <ProcessingTimeline progress={item.progress} fileName={item.fileName} />
+                  {item.progress.status === 'done' && item.result && <ResultCard result={item.result} />}
+                </div>
+              ))}
             </>
           )}
         </div>
